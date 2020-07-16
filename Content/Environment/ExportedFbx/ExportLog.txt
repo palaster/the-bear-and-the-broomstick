@@ -1,0 +1,6 @@
+...
+1 StaticMesh(s) | 0 SkeletalMesh(s) | 0 Alembic(s) | 0 Animation(s) | 0 Camera(s) | 0 Other(s)
+
+[StaticMesh] -> "SM_Islands.fbx" exported in 0.4392507076263428 sec.
+C:\Users\Mr Badger\Desktop\ExportedFbx\StaticMesh
+
