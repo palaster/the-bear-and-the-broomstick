@@ -1,8 +1,18 @@
 {
 	"FileVersion": 3,
-	"EngineAssociation": "4.25",
+	"EngineAssociation": "{0004EFCC-08D7-FA99-E07A-A1D46E4BC570}",
 	"Category": "",
 	"Description": "",
+	"Modules": [
+		{
+			"Name": "BearBroomstick",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"AdditionalDependencies": [
+				"Engine"
+			]
+		}
+	],
 	"Plugins": [
 		{
 			"Name": "LiveLink",
