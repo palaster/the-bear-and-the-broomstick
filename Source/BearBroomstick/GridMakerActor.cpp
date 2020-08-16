@@ -86,8 +86,21 @@ void AGridMakerActor::DestroyGrid(AGridActor* Grid)
 			StartGrid->Destroy();
 		}
 		StartGrid = nullptr;
+		AWaypointActor* PreviousReal = nullptr;
+		AWaypointActor* NextReal = nullptr;
 		for(AWaypointActor* CreatedWaypoint : CreatedWaypoints)
+		{
+			if(IsValid(CreatedWaypoint->PreviousWaypoint) && !CreatedWaypoint->PreviousWaypoint->bWasCreated)
+				PreviousReal = CreatedWaypoint->PreviousWaypoint;
+			if(IsValid(CreatedWaypoint->NextWaypoint) && !CreatedWaypoint->NextWaypoint->bWasCreated)
+				NextReal = CreatedWaypoint->NextWaypoint;
 			CreatedWaypoint->Destroy();
+		}
+		if(IsValid(PreviousReal) && IsValid(NextReal))
+		{
+			PreviousReal->NextWaypoint = NextReal;
+			NextReal->PreviousWaypoint = PreviousReal;
+		}
 		CreatedWaypoints.Empty();
 	}
 }
@@ -223,7 +236,6 @@ void AGridMakerActor::MakeValidPath()
 					SpawnNewRing(OriginalGrids[i + 1], OriginalGrids[i]-> Iteration);
 			}
 		}
-	// Average Rings (Change from Inside == i affects i from i + 1 && i - 1)
 }
 
 AGridActor* AGridMakerActor::GetLastGridWithProblem()
@@ -339,6 +351,7 @@ void AGridMakerActor::CreateWaypointsFromValidPath(AWaypointActor* StartingWaypo
 			if(IsValid(NewWaypoint))
 			{
 				NewWaypoint->PreviousWaypoint = CurrentWaypoint;
+				NewWaypoint->bWasCreated = true;
 				NewWaypoint = Cast<AWaypointActor>(UGameplayStatics::FinishSpawningActor(NewWaypoint, FTransform(ValidGrid->GetActorLocation())));
 			}
 			if(IsValid(NewWaypoint))

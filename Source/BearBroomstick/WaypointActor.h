@@ -22,6 +22,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ExposeOnSpawn = "true"))
 	AWaypointActor* NextWaypoint;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (ExposeOnSpawn = "true"))
+	bool bWasCreated = false;
 
 	USceneComponent* GetScene() const { return Scene; }
 	UBillboardComponent* GetBillboard() const { return Billboard; }
