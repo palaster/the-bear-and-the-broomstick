@@ -17,6 +17,7 @@ void AGridMakerActor::MakeGrid(FVector CurrentLocation, FVector TargetLocation, 
 {
 	if(IsValid(StartGrid))
 		DestroyGrid(nullptr);
+	Direction = UKismetMathLibrary::GetDirectionUnitVector(CurrentLocation, TargetLocation);
 	SmallestSizeToFit = NewSmallestSizeToFit;
 	KnownObstacles = NewKnownObstacles;
 	MaxRingSize = NewMaxRingSize;
@@ -102,6 +103,7 @@ void AGridMakerActor::DestroyGrid(AGridActor* Grid)
 			NextReal->PreviousWaypoint = PreviousReal;
 		}
 		CreatedWaypoints.Empty();
+		Direction = FVector(NAN, NAN, NAN);
 	}
 }
 
@@ -284,56 +286,233 @@ void AGridMakerActor::SpawnNewRing(AGridActor* ProblemGrid, int Iteration, bool 
 	int NumberToSpawn = 3 + (Iteration * 2);
 	int FirstIndex = 0 - (NumberToSpawn / 2);
 	int LastIndex = NumberToSpawn / 2;
-	for(int Z = FirstIndex; Z <= LastIndex; Z++)
-		for(int X = FirstIndex; X <= LastIndex; X++)
+
+	// Direction based Math
+
+	EDirection WorkingDirection = EDirection::D_None;
+	if(Direction.ContainsNaN())
+		return;
+
+	float D_X = Direction.X;
+	float D_Y = Direction.Y;
+	float D_Z = Direction.Z;
+
+	float Max = 0.0f;
+	float Min = 0.0f;
+
+	if(D_X > Max)
+		Max = D_X;
+	if(D_Y > Max)
+		Max = D_Y;
+	if(D_Z > Max)
+		Max = D_Z;
+
+	if(D_X < Min)
+		Min = D_X;
+	if(D_Y < Min)
+		Min = D_Y;
+	if(D_Z < Min)
+		Min = D_Z;
+
+	if(Max > UKismetMathLibrary::Abs(Min))
+	{
+		// Forward, Right, or Up Direction
+		if(Max == D_X)
+			WorkingDirection = EDirection::D_Forward;
+		else if(Max == D_Y)
+			WorkingDirection = EDirection::D_Right;
+		else if(Max == D_Z)
+			WorkingDirection = EDirection::D_Up;
+		else
 		{
-			if(Z == FirstIndex || Z == LastIndex)
-			{
-				FVector NewGridLocation = FVector(StartLocation.X + (X * (SmallestSizeToFit.X * 2.0f)), StartLocation.Y, StartLocation.Z + (Z * (SmallestSizeToFit.X * 2.0f)));
-				AGridActor* NewGrid = GetWorld()->SpawnActorDeferred<AGridActor>(AGridActor::StaticClass(), FTransform(NewGridLocation), nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
-				if(IsValid(NewGrid))
-				{
-					NewGrid->PreviousGrid = PreviousGrid;
-					NewGrid->NextGrids = NextGrids;
-					NewGrid->GetGridCollision()->SetBoxExtent(SmallestSizeToFit, true);
-					NewGrid = Cast<AGridActor>(UGameplayStatics::FinishSpawningActor(NewGrid, FTransform(NewGridLocation)));
-				}
-				if(IsValid(NewGrid))
-				{
-					PreviousGrid->NextGrids.Add(NewGrid);
-
-					if(ProblemGrid != PreviousGrid && PreviousGrid->Rings.Num() > 0)
-						for(AGridActor* PreviousRingGrid : PreviousGrid->Rings)
-							PreviousRingGrid->NextGrids.Add(NewGrid);
-
-					ProblemGrid->Rings.Add(NewGrid);
-					ActorsToIgnore.Add(NewGrid);
-				}
-			}
-			else if(X == FirstIndex || X == LastIndex)
-			{
-				FVector NewGridLocation = FVector(StartLocation.X + (X * (SmallestSizeToFit.X * 2.0f)), StartLocation.Y, StartLocation.Z + (Z * (SmallestSizeToFit.X * 2.0f)));
-				AGridActor* NewGrid = GetWorld()->SpawnActorDeferred<AGridActor>(AGridActor::StaticClass(), FTransform(NewGridLocation), nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
-				if(IsValid(NewGrid))
-				{
-					NewGrid->PreviousGrid = PreviousGrid;
-					NewGrid->NextGrids = NextGrids;
-					NewGrid->GetGridCollision()->SetBoxExtent(SmallestSizeToFit, true);
-					NewGrid = Cast<AGridActor>(UGameplayStatics::FinishSpawningActor(NewGrid, FTransform(NewGridLocation)));
-				}
-				if(IsValid(NewGrid))
-				{
-					PreviousGrid->NextGrids.Add(NewGrid);
-
-					if(ProblemGrid != PreviousGrid && PreviousGrid->Rings.Num() > 0)
-						for(AGridActor* PreviousRingGrid : PreviousGrid->Rings)
-							PreviousRingGrid->NextGrids.Add(NewGrid);
-
-					ProblemGrid->Rings.Add(NewGrid);
-					ActorsToIgnore.Add(NewGrid);
-				}
-			}
+			// One of these needs to be equal to Max(?)
+			return;
 		}
+	}
+	else if (Max < UKismetMathLibrary::Abs(Min))
+	{
+		// Backward, Left, or Down Direction
+		if(Min == D_X)
+			WorkingDirection = EDirection::D_Backward;
+		else if(Min == D_Y)
+			WorkingDirection = EDirection::D_Left;
+		else if(Min == D_Z)
+			WorkingDirection = EDirection::D_Down;
+		else
+		{
+			// One of these needs to be equal to Min(?)
+			return;
+		}
+	}
+	else
+	{
+		// Max and Min should never be equal in a normal situation(?)
+		return;
+	}
+	
+	if(WorkingDirection == EDirection::D_None)
+		return;
+
+	// Negative Directions don't change final result
+	if(WorkingDirection == EDirection::D_Forward || WorkingDirection == EDirection::D_Backward)
+	{
+		for(int Z = FirstIndex; Z <= LastIndex; Z++)
+			for(int Y = FirstIndex; Y <= LastIndex; Y++)
+			{
+				if(Z == FirstIndex || Z == LastIndex)
+				{
+					FVector NewGridLocation = FVector(StartLocation.X, StartLocation.Y + (Y * (SmallestSizeToFit.X * 2.0f)), StartLocation.Z + (Z * (SmallestSizeToFit.X * 2.0f)));
+					AGridActor* NewGrid = GetWorld()->SpawnActorDeferred<AGridActor>(AGridActor::StaticClass(), FTransform(NewGridLocation), nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+					if(IsValid(NewGrid))
+					{
+						NewGrid->PreviousGrid = PreviousGrid;
+						NewGrid->NextGrids = NextGrids;
+						NewGrid->GetGridCollision()->SetBoxExtent(SmallestSizeToFit, true);
+						NewGrid = Cast<AGridActor>(UGameplayStatics::FinishSpawningActor(NewGrid, FTransform(NewGridLocation)));
+					}
+					if(IsValid(NewGrid))
+					{
+						PreviousGrid->NextGrids.Add(NewGrid);
+
+						if(ProblemGrid != PreviousGrid && PreviousGrid->Rings.Num() > 0)
+							for(AGridActor* PreviousRingGrid : PreviousGrid->Rings)
+								PreviousRingGrid->NextGrids.Add(NewGrid);
+
+						ProblemGrid->Rings.Add(NewGrid);
+						ActorsToIgnore.Add(NewGrid);
+					}
+				}
+				else if(Y == FirstIndex || Y == LastIndex)
+				{
+					FVector NewGridLocation = FVector(StartLocation.X, StartLocation.Y + (Y * (SmallestSizeToFit.X * 2.0f)), StartLocation.Z + (Z * (SmallestSizeToFit.X * 2.0f)));
+					AGridActor* NewGrid = GetWorld()->SpawnActorDeferred<AGridActor>(AGridActor::StaticClass(), FTransform(NewGridLocation), nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+					if(IsValid(NewGrid))
+					{
+						NewGrid->PreviousGrid = PreviousGrid;
+						NewGrid->NextGrids = NextGrids;
+						NewGrid->GetGridCollision()->SetBoxExtent(SmallestSizeToFit, true);
+						NewGrid = Cast<AGridActor>(UGameplayStatics::FinishSpawningActor(NewGrid, FTransform(NewGridLocation)));
+					}
+					if(IsValid(NewGrid))
+					{
+						PreviousGrid->NextGrids.Add(NewGrid);
+
+						if(ProblemGrid != PreviousGrid && PreviousGrid->Rings.Num() > 0)
+							for(AGridActor* PreviousRingGrid : PreviousGrid->Rings)
+								PreviousRingGrid->NextGrids.Add(NewGrid);
+
+						ProblemGrid->Rings.Add(NewGrid);
+						ActorsToIgnore.Add(NewGrid);
+					}
+				}
+			}
+	}
+	else if(WorkingDirection == EDirection::D_Right || WorkingDirection == EDirection::D_Left)
+	{
+		for(int Z = FirstIndex; Z <= LastIndex; Z++)
+			for(int X = FirstIndex; X <= LastIndex; X++)
+			{
+				if(Z == FirstIndex || Z == LastIndex)
+				{
+					FVector NewGridLocation = FVector(StartLocation.X  + (X * (SmallestSizeToFit.X * 2.0f)), StartLocation.Y, StartLocation.Z + (Z * (SmallestSizeToFit.X * 2.0f)));
+					AGridActor* NewGrid = GetWorld()->SpawnActorDeferred<AGridActor>(AGridActor::StaticClass(), FTransform(NewGridLocation), nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+					if(IsValid(NewGrid))
+					{
+						NewGrid->PreviousGrid = PreviousGrid;
+						NewGrid->NextGrids = NextGrids;
+						NewGrid->GetGridCollision()->SetBoxExtent(SmallestSizeToFit, true);
+						NewGrid = Cast<AGridActor>(UGameplayStatics::FinishSpawningActor(NewGrid, FTransform(NewGridLocation)));
+					}
+					if(IsValid(NewGrid))
+					{
+						PreviousGrid->NextGrids.Add(NewGrid);
+
+						if(ProblemGrid != PreviousGrid && PreviousGrid->Rings.Num() > 0)
+							for(AGridActor* PreviousRingGrid : PreviousGrid->Rings)
+								PreviousRingGrid->NextGrids.Add(NewGrid);
+
+						ProblemGrid->Rings.Add(NewGrid);
+						ActorsToIgnore.Add(NewGrid);
+					}
+				}
+				else if(X == FirstIndex || X == LastIndex)
+				{
+					FVector NewGridLocation = FVector(StartLocation.X  + (X * (SmallestSizeToFit.X * 2.0f)), StartLocation.Y, StartLocation.Z + (Z * (SmallestSizeToFit.X * 2.0f)));
+					AGridActor* NewGrid = GetWorld()->SpawnActorDeferred<AGridActor>(AGridActor::StaticClass(), FTransform(NewGridLocation), nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+					if(IsValid(NewGrid))
+					{
+						NewGrid->PreviousGrid = PreviousGrid;
+						NewGrid->NextGrids = NextGrids;
+						NewGrid->GetGridCollision()->SetBoxExtent(SmallestSizeToFit, true);
+						NewGrid = Cast<AGridActor>(UGameplayStatics::FinishSpawningActor(NewGrid, FTransform(NewGridLocation)));
+					}
+					if(IsValid(NewGrid))
+					{
+						PreviousGrid->NextGrids.Add(NewGrid);
+
+						if(ProblemGrid != PreviousGrid && PreviousGrid->Rings.Num() > 0)
+							for(AGridActor* PreviousRingGrid : PreviousGrid->Rings)
+								PreviousRingGrid->NextGrids.Add(NewGrid);
+
+						ProblemGrid->Rings.Add(NewGrid);
+						ActorsToIgnore.Add(NewGrid);
+					}
+				}
+			}
+	}
+	else if(WorkingDirection == EDirection::D_Up || WorkingDirection == EDirection::D_Down)
+	{
+		for(int X = FirstIndex; X <= LastIndex; X++)
+			for(int Y = FirstIndex; Y <= LastIndex; Y++)
+			{
+				if(X == FirstIndex || X == LastIndex)
+				{
+					FVector NewGridLocation = FVector(StartLocation.X + (X * (SmallestSizeToFit.X * 2.0f)), StartLocation.Y  + (Y * (SmallestSizeToFit.X * 2.0f)), StartLocation.Z);
+					AGridActor* NewGrid = GetWorld()->SpawnActorDeferred<AGridActor>(AGridActor::StaticClass(), FTransform(NewGridLocation), nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+					if(IsValid(NewGrid))
+					{
+						NewGrid->PreviousGrid = PreviousGrid;
+						NewGrid->NextGrids = NextGrids;
+						NewGrid->GetGridCollision()->SetBoxExtent(SmallestSizeToFit, true);
+						NewGrid = Cast<AGridActor>(UGameplayStatics::FinishSpawningActor(NewGrid, FTransform(NewGridLocation)));
+					}
+					if(IsValid(NewGrid))
+					{
+						PreviousGrid->NextGrids.Add(NewGrid);
+
+						if(ProblemGrid != PreviousGrid && PreviousGrid->Rings.Num() > 0)
+							for(AGridActor* PreviousRingGrid : PreviousGrid->Rings)
+								PreviousRingGrid->NextGrids.Add(NewGrid);
+
+						ProblemGrid->Rings.Add(NewGrid);
+						ActorsToIgnore.Add(NewGrid);
+					}
+				}
+				else if(Y == FirstIndex || Y == LastIndex)
+				{
+					FVector NewGridLocation = FVector(StartLocation.X + (X * (SmallestSizeToFit.X * 2.0f)), StartLocation.Y + (Y * (SmallestSizeToFit.X * 2.0f)), StartLocation.Z);
+					AGridActor* NewGrid = GetWorld()->SpawnActorDeferred<AGridActor>(AGridActor::StaticClass(), FTransform(NewGridLocation), nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+					if(IsValid(NewGrid))
+					{
+						NewGrid->PreviousGrid = PreviousGrid;
+						NewGrid->NextGrids = NextGrids;
+						NewGrid->GetGridCollision()->SetBoxExtent(SmallestSizeToFit, true);
+						NewGrid = Cast<AGridActor>(UGameplayStatics::FinishSpawningActor(NewGrid, FTransform(NewGridLocation)));
+					}
+					if(IsValid(NewGrid))
+					{
+						PreviousGrid->NextGrids.Add(NewGrid);
+
+						if(ProblemGrid != PreviousGrid && PreviousGrid->Rings.Num() > 0)
+							for(AGridActor* PreviousRingGrid : PreviousGrid->Rings)
+								PreviousRingGrid->NextGrids.Add(NewGrid);
+
+						ProblemGrid->Rings.Add(NewGrid);
+						ActorsToIgnore.Add(NewGrid);
+					}
+				}
+			}
+	}
 }
 
 void AGridMakerActor::CreateWaypointsFromValidPath(AWaypointActor* StartingWaypoint)

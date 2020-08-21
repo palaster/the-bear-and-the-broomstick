@@ -7,6 +7,18 @@
 class AGridActor;
 class AWaypointActor;
 
+UENUM(BlueprintType)
+enum class EDirection : uint8
+{
+	D_None UMETA(DisplayName = "Nonek"),
+	D_Up UMETA(DisplayName = "Up"),
+	D_Down UMETA(DisplayName = "Down"),
+	D_Left UMETA(DisplayName = "Left"),
+	D_Right UMETA(DisplayName = "Right"),
+	D_Forward UMETA(DisplayName = "Forward"),
+	D_Backward UMETA(DisplayName = "Backward")
+};
+
 UCLASS()
 class BEARBROOMSTICK_API AGridMakerActor : public AActor
 {
@@ -15,6 +27,9 @@ class BEARBROOMSTICK_API AGridMakerActor : public AActor
 public:	
 	// Sets default values for this actor's properties
 	AGridMakerActor();
+
+	UPROPERTY(BlueprintReadOnly)
+	FVector Direction = FVector(NAN, NAN, NAN);
 
 	UPROPERTY(BlueprintReadOnly)
 	AGridActor* StartGrid;
