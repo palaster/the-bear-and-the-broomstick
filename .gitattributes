@@ -1,0 +1,13 @@
+*.wav filter=lfs diff=lfs merge=lfs -text
+content/Player filter=lfs diff=lfs merge=lfs -text
+content/UI filter=lfs diff=lfs merge=lfs -text
+content/Collections filter=lfs diff=lfs merge=lfs -text
+content/Data filter=lfs diff=lfs merge=lfs -text
+content/Developers filter=lfs diff=lfs merge=lfs -text
+content/Entities filter=lfs diff=lfs merge=lfs -text
+content/Environment filter=lfs diff=lfs merge=lfs -text
+content/Particles filter=lfs diff=lfs merge=lfs -text
+content/Audio filter=lfs diff=lfs merge=lfs -text
+content/ForceFeedback filter=lfs diff=lfs merge=lfs -text
+content/GameModes filter=lfs diff=lfs merge=lfs -text
+content/Levels filter=lfs diff=lfs merge=lfs -text
